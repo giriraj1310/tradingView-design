@@ -152,6 +152,89 @@ class IBKRBroker:
     def open_orders(self):
         return self._require().reqAllOpenOrders()
 
+    # --- options -------------------------------------------------------
+    def option_chain(self, underlying: str):
+        """Return (expirations, strikes) for SMART-routed options on `underlying`."""
+        ib = self._require()
+        stock = self._stock(underlying)
+        params = ib.reqSecDefOptParams(stock.symbol, "", "STK", stock.conId)
+        expirations: set = set()
+        strikes: set = set()
+        for p in params:
+            if getattr(p, "exchange", "SMART") == "SMART":
+                expirations |= set(p.expirations)
+                strikes |= set(p.strikes)
+        if not expirations:  # fall back to any exchange if SMART not present
+            for p in params:
+                expirations |= set(p.expirations)
+                strikes |= set(p.strikes)
+        return sorted(expirations), sorted(float(s) for s in strikes)
+
+    def _option(self, c):
+        from ._ibapi import Option
+
+        opt = Option(c.symbol, c.expiry, float(c.strike), c.right,
+                     c.exchange, currency=c.currency, multiplier=str(c.multiplier))
+        self._require().qualifyContracts(opt)
+        return opt
+
+    def option_quote(self, contract):
+        from .. options.types import OptionQuote
+
+        ib = self._require()
+        try:  # use delayed data if no realtime OPRA subscription
+            ib.reqMarketDataType(3)
+        except Exception:
+            pass
+        ticker = ib.reqTickers(self._option(contract))[0]
+        greeks = getattr(ticker, "modelGreeks", None)
+        return OptionQuote(
+            contract=contract,
+            bid=_npf(getattr(ticker, "bid", None)),
+            ask=_npf(getattr(ticker, "ask", None)),
+            last=_npf(getattr(ticker, "last", None)),
+            delta=_npf(getattr(greeks, "delta", None)) if greeks else None,
+            iv=_npf(getattr(greeks, "impliedVol", None)) if greeks else None,
+        )
+
+    def option_positions(self):
+        from ..options.types import OptionContract, OptionPosition
+
+        ib = self._require()
+        out = []
+        for p in ib.positions(self._account or ""):
+            c = p.contract
+            if getattr(c, "secType", "") != "OPT":
+                continue
+            out.append(OptionPosition(
+                contract=OptionContract(
+                    symbol=c.symbol, expiry=c.lastTradeDateOrContractMonth,
+                    strike=float(c.strike), right=c.right,
+                    multiplier=int(float(c.multiplier or 100)),
+                ),
+                quantity=int(p.position),
+                avg_cost=float(p.avgCost) / float(c.multiplier or 100),
+            ))
+        return out
+
+    def place_option_order(self, order):
+        from ._ibapi import LimitOrder, MarketOrder
+
+        ib = self._require()
+        opt = self._option(order.contract)
+        if order.order_type == "LMT" and order.limit_price:
+            ib_order = LimitOrder(order.action, order.quantity, order.limit_price)
+        else:
+            ib_order = MarketOrder(order.action, order.quantity)
+        ib_order.tif = order.tif
+        if self._account:
+            ib_order.account = self._account
+        if order.client_id:
+            ib_order.orderRef = order.client_id
+        trade = ib.placeOrder(opt, ib_order)
+        ib.sleep(1)
+        return trade
+
     # --- writes --------------------------------------------------------
     def place_order(self, order: Order):
         from ._ibapi import LimitOrder, MarketOrder
@@ -191,3 +274,14 @@ def _f(value) -> float:
         return float(value)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _npf(value):
+    """Float or None — ib_insync tickers use NaN for missing quotes."""
+    try:
+        f = float(value)
+    except (TypeError, ValueError):
+        return None
+    import math
+
+    return None if math.isnan(f) else f

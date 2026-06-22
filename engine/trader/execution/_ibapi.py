@@ -21,6 +21,7 @@ except ImportError:
 
 IB = _ib.IB
 Stock = _ib.Stock
+Option = _ib.Option
 MarketOrder = _ib.MarketOrder
 LimitOrder = _ib.LimitOrder
 util = _ib.util

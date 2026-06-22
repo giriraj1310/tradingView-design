@@ -177,6 +177,84 @@ def cmd_check_ibkr(cfg: AppConfig, policy: RiskPolicy, args) -> int:
         broker.disconnect()
 
 
+def cmd_options_signals(cfg: AppConfig, policy: RiskPolicy, args) -> int:
+    """Offline sanity: trend + the contract the LEAPS strategy would TARGET.
+    (Listed strike/expiry/premium need a live IBKR chain — use options-paper.)"""
+    from .data import yahoo
+    from .options import strategy as S
+
+    oc = cfg.options
+    hist = yahoo.load([oc.underlying], cache_dir=cfg.cache_dir,
+                      start=cfg.backtest.start, refresh=args.refresh)
+    close = hist[oc.underlying]["close"]
+    trend_up = S.is_uptrend(close, cfg.sma_window)
+    spot = float(close.iloc[-1])
+    print(f"=== LEAPS-trend signal for {oc.underlying} ===")
+    print(f"spot               {spot:,.2f}")
+    print(f"trend (>{cfg.sma_window}d SMA) {trend_up}")
+    if not trend_up:
+        print("=> trend down: strategy would hold NO calls (flat).")
+        return 0
+    print(f"would BUY a {oc.right} call:")
+    print(f"  target expiry    nearest listed >= {oc.min_dte} DTE (<= {oc.max_dte})")
+    print(f"  target strike    ~{spot * oc.target_moneyness:,.2f} "
+          f"({oc.target_moneyness:.0%} of spot, ITM)")
+    print(f"  premium budget   {oc.max_premium_pct:.0%} of equity "
+          f"(= max loss), cap {oc.max_contracts} contracts")
+    print("NOTE: exact strike/expiry/premium/size require a live IBKR chain "
+          "(run: options-paper).")
+    return 0
+
+
+def cmd_options_chain(cfg: AppConfig, policy: RiskPolicy, args) -> int:
+    from .execution.ibkr_broker import IBKRBroker, IBKRError
+    from .options.types import dte
+    from datetime import date
+
+    oc = cfg.options
+    broker = IBKRBroker(cfg.ibkr)
+    print(f"Connecting to IBKR to read the {oc.underlying} option chain ...")
+    try:
+        broker.connect()
+    except IBKRError as e:
+        print(f"\nCONNECTION FAILED:\n  {e}")
+        return 2
+    try:
+        expirations, strikes = broker.option_chain(oc.underlying)
+        spot = broker.latest_prices([oc.underlying]).get(oc.underlying)
+        today = date.today()
+        leaps = [e for e in expirations if oc.min_dte <= dte(e, today) <= oc.max_dte]
+        print(f"\n{oc.underlying} spot ~ {spot}")
+        print(f"total expirations: {len(expirations)}, strikes: {len(strikes)}")
+        print(f"LEAPS expirations ({oc.min_dte}-{oc.max_dte} DTE): {leaps[:8]}")
+        if spot:
+            near = sorted(strikes, key=lambda k: abs(k - spot))[:8]
+            print(f"strikes near spot: {sorted(near)}")
+        print("\nOK — option chain is reachable.")
+        return 0
+    finally:
+        broker.disconnect()
+
+
+def cmd_options_paper(cfg: AppConfig, policy: RiskPolicy, args) -> int:
+    from .options.loop import run_options_cycle
+
+    logger = setup_logging(cfg.log_file)
+    dry_run = not args.live_send
+    if dry_run:
+        print("DRY-RUN: computing the option order but NOT sending. "
+              "Use --live-send to transmit to the paper account.")
+    result = run_options_cycle(cfg, policy, dry_run=dry_run, logger=logger)
+    d = result["decision"]
+    print(f"\nunderlying : {d['underlying']}  spot {d['spot']}  trend_up {d['trend_up']}"
+          f"  halt {d['halt']}")
+    print(f"held       : {d['held'] or '(none)'}")
+    print(f"target     : {d['target']}")
+    print(f"orders     : {result['orders'] or '(none)'}")
+    print(f"skipped    : {result['skipped_idempotent']}")
+    return 0
+
+
 def cmd_paper(cfg: AppConfig, policy: RiskPolicy, args) -> int:
     from .loop import run_cycle
 
@@ -227,6 +305,21 @@ def main(argv=None) -> int:
     p_pap.add_argument("--live-send", action="store_true",
                        help="actually transmit orders (default is dry-run)")
     p_pap.set_defaults(func=cmd_paper)
+
+    p_osig = sub.add_parser("options-signals",
+                            help="offline: trend + targeted LEAPS contract (no broker)")
+    p_osig.add_argument("--refresh", action="store_true")
+    p_osig.set_defaults(func=cmd_options_signals)
+
+    p_och = sub.add_parser("options-chain",
+                           help="connect to IBKR and inspect the SPY option chain")
+    p_och.set_defaults(func=cmd_options_chain)
+
+    p_opap = sub.add_parser("options-paper",
+                            help="run one LEAPS-trend cycle against IBKR (dry-run default)")
+    p_opap.add_argument("--live-send", action="store_true",
+                        help="actually transmit the option order (default is dry-run)")
+    p_opap.set_defaults(func=cmd_options_paper)
 
     args = parser.parse_args(argv)
     cfg = AppConfig.load(args.config) if args.config else AppConfig.load()

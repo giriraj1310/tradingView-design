@@ -85,6 +85,20 @@ class IBKRConfig:
 
 
 @dataclass
+class OptionsConfig:
+    enabled: bool = False
+    underlying: str = "SPY"
+    right: str = "C"
+    min_dte: int = 365          # LEAPS: at least ~1 year to expiry
+    max_dte: int = 730          # ...up to ~2 years
+    roll_dte: int = 60          # close/roll when fewer than this many days left
+    target_moneyness: float = 0.95  # strike ~5% ITM for a long call (higher delta)
+    max_premium_pct: float = 0.05   # max total premium at risk = your defined max loss
+    max_contracts: int = 10
+    limit_buffer: float = 0.02  # marketable-limit buffer over the quote
+
+
+@dataclass
 class BacktestConfig:
     start: str = "2015-01-01"
     end: Optional[str] = None
@@ -104,6 +118,7 @@ class AppConfig:
     cache_dir: str = ".cache"
     backtest: BacktestConfig = field(default_factory=BacktestConfig)
     ibkr: IBKRConfig = field(default_factory=IBKRConfig)
+    options: OptionsConfig = field(default_factory=OptionsConfig)
     strategy_name: str = "trend"
     sma_window: int = 200
     base_gross: float = 1.0
@@ -118,6 +133,7 @@ class AppConfig:
         data = d.get("data", {})
         bt = d.get("backtest", {})
         ib = d.get("ibkr", {})
+        opt = d.get("options", {})
         strat = d.get("strategy", {})
         return cls(
             universe=d.get("universe", []),
@@ -140,6 +156,18 @@ class AppConfig:
                 client_id=ib.get("client_id", 17),
                 account=ib.get("account"),
                 readonly=ib.get("readonly", False),
+            ),
+            options=OptionsConfig(
+                enabled=opt.get("enabled", False),
+                underlying=opt.get("underlying", "SPY"),
+                right=opt.get("right", "C"),
+                min_dte=opt.get("min_dte", 365),
+                max_dte=opt.get("max_dte", 730),
+                roll_dte=opt.get("roll_dte", 60),
+                target_moneyness=opt.get("target_moneyness", 0.95),
+                max_premium_pct=opt.get("max_premium_pct", 0.05),
+                max_contracts=opt.get("max_contracts", 10),
+                limit_buffer=opt.get("limit_buffer", 0.02),
             ),
             strategy_name=strat.get("name", "trend"),
             sma_window=strat.get("sma_window", 200),

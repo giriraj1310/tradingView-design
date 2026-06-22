@@ -27,7 +27,11 @@ trader/
     walkforward.py     # walk-forward + out-of-sample stitching
   store.py             # SQLite audit log: decisions/orders/fills + idempotency
   reconcile.py         # broker-vs-local position reconciliation
-  loop.py              # the paper/live cycle (injectable broker/store)
+  loop.py              # the equity paper/live cycle (injectable broker/store)
+  options/
+    types.py           # OptionContract / OptionQuote / OptionOrder
+    strategy.py        # LEAPS-trend: pure select/size/exit logic
+    loop.py            # options paper/live cycle (injectable broker/store)
   cli.py               # entrypoints
 config/config.yaml      # universe, broker, backtest settings
 config/risk_policy.yaml # the hard risk limits
@@ -119,6 +123,30 @@ Ports live in `config/config.yaml` under `ibkr.port`. Risk limits live in
 - **Audit log** — every decision, order, and fill is written to a SQLite db
   (`store_db` in config) for post-trade analysis. Dry-run orders are recorded but
   never block live sends.
+
+## Options: SPY LEAPS (directional, defined-risk)
+
+A deliberately simple options strategy: hold **one long-dated, slightly-ITM SPY
+call** while the 200-day trend is up; close it when the trend breaks or expiry
+nears. Max loss = premium paid (defined risk). We only ever **buy** calls — no
+selling, no naked exposure, no 0DTE. Configure under `options:` in
+`config/config.yaml` (DTE window, moneyness, `max_premium_pct` = your max loss).
+
+```bash
+python -m trader.cli options-signals     # offline: trend + the contract it targets (no broker)
+python -m trader.cli options-chain       # connect to IBKR, inspect the SPY chain (needs options data)
+python -m trader.cli options-paper       # one LEAPS-trend cycle, DRY-RUN (sends nothing)
+python -m trader.cli options-paper --live-send   # transmit the option order to the PAPER account
+```
+
+Validation is **straight to paper** (free historical option chains don't exist,
+and for options fills/spreads dominate — paper is the honest test). The same
+reconnect / reconciliation / idempotent-audit safety applies. Requires an
+options-enabled IBKR account and (for live quotes) an options market-data
+subscription; `options-chain` will tell you if data isn't reaching you.
+
+> Buying LEAPS calls loses money in flat/down markets (theta + direction); the
+> trend filter is what keeps you out of those. Defined risk, but still risk.
 
 ## Going further (see the design doc)
 

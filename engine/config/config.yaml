@@ -30,6 +30,18 @@ strategy:
   sma_window: 200
   base_gross: 1.0          # full target gross before risk scaling
 
+options:                   # directional LEAPS on SPY, timed by the 200d trend
+  enabled: true
+  underlying: SPY
+  right: C
+  min_dte: 365             # buy calls at least ~1 year out
+  max_dte: 730             # ...up to ~2 years
+  roll_dte: 60             # close/roll when < 60 days to expiry
+  target_moneyness: 0.95   # strike ~5% in-the-money (higher delta, less theta)
+  max_premium_pct: 0.05    # max total premium at risk = your DEFINED max loss
+  max_contracts: 10
+  limit_buffer: 0.02       # marketable-limit buffer over the quote
+
 state_file: .state/risk_state.json
 store_db: .state/trader.db      # SQLite audit log: decisions, orders, fills (idempotency)
 log_file: .logs/trader.log
