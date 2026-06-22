@@ -22,7 +22,9 @@ rendered by a small **Next.js** site deployed on **Vercel**.
   event-driven backtester, the risk gatekeeper (caps, vol-targeting,
   kill-switches), and an `ib_insync` adapter that connects to IBKR **paper
   trading**. The same strategy + risk code runs in backtest, paper, and live.
-  See [`engine/README.md`](engine/README.md) to run it.
+  See [`engine/README.md`](engine/README.md) to run it, or
+  [`engine/RUNBOOK.md`](engine/RUNBOOK.md) to test the live IBKR paper socket
+  end to end (`bash engine/quickstart.sh` for one-command setup).
 
 > The Next.js site is **documentation only**. The actual trading engine is
 > intended to run on your own always-on host (it needs a persistent socket to

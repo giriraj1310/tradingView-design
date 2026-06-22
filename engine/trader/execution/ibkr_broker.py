@@ -36,11 +36,9 @@ class IBKRBroker:
     # --- lifecycle -----------------------------------------------------
     def connect(self, timeout: float = 15.0) -> "IBKRBroker":
         try:
-            from ib_insync import IB
+            from ._ibapi import IB
         except ImportError as e:  # pragma: no cover
-            raise IBKRError(
-                "ib_insync is not installed. Run: pip install ib_insync"
-            ) from e
+            raise IBKRError(str(e)) from e
 
         ib = IB()
         try:
@@ -132,7 +130,7 @@ class IBKRBroker:
 
     # --- writes --------------------------------------------------------
     def place_order(self, order: Order):
-        from ib_insync import LimitOrder, MarketOrder
+        from ._ibapi import LimitOrder, MarketOrder
 
         ib = self._require()
         contract = self._stock(order.symbol)
@@ -152,7 +150,7 @@ class IBKRBroker:
 
     # --- internals -----------------------------------------------------
     def _stock(self, symbol: str):
-        from ib_insync import Stock
+        from ._ibapi import Stock
 
         c = Stock(symbol, "SMART", "USD")
         self._require().qualifyContracts(c)

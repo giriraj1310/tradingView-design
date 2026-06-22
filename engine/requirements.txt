@@ -1,4 +1,4 @@
-# Core
+# Core (works on Python 3.9–3.13)
 pandas>=2.0
 numpy>=1.24
 PyYAML>=6.0
@@ -6,11 +6,12 @@ PyYAML>=6.0
 # Research data (free, for backtesting)
 yfinance>=0.2.40
 
-# IBKR connectivity.
-#   ib_insync works on Python 3.9 (used here) and is the de-facto reference client.
-#   On Python 3.10+ prefer the maintained successor `ib_async` (drop-in, same API):
-#   just `pip install ib_async` and change `import ib_insync` -> `import ib_async`.
-ib_insync>=0.9.86
-
 # Tests
 pytest>=7.0
+
+# IBKR client is installed separately, chosen by Python version, because the
+# two packages target different versions (both expose the same API, and the
+# engine auto-detects whichever is present):
+#     Python <= 3.11 :  pip install "ib_insync>=0.9.86"
+#     Python >= 3.12 :  pip install "ib_async>=1.0"
+# quickstart.sh does this for you automatically.

@@ -32,15 +32,27 @@ tests/                  # incl. a direct no-look-ahead proof
 
 ## Setup
 
+Fastest path (sets up the venv, installs deps, runs tests + a backtest, then a
+connection check):
+
+```bash
+bash engine/quickstart.sh
+```
+
+Or manually:
+
 ```bash
 cd engine
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+# IBKR client (auto-detected at runtime — install the one for your Python):
+pip install "ib_insync>=0.9.86"   # Python <= 3.11
+# pip install "ib_async>=1.0"     # Python >= 3.12 (maintained fork)
 ```
 
-(Python 3.9 works with `ib_insync`. On Python 3.10+ prefer `ib_async` — a
-drop-in fork; `pip install ib_async` and change the imports in
-`execution/ibkr_broker.py`.)
+To test the **live IBKR paper socket** end to end, follow
+[`RUNBOOK.md`](RUNBOOK.md). Note: a corporate VPN (e.g. GlobalProtect) usually
+blocks IB Gateway from reaching IBKR's servers — run on a personal machine.
 
 ## 1) Backtest (no broker needed)
 
