@@ -14,6 +14,7 @@ ib_insync runs on Python 3.9 (used here). On Python 3.10+ prefer `ib_async`
 """
 from __future__ import annotations
 
+import time
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -60,6 +61,29 @@ class IBKRBroker:
         accounts = ib.managedAccounts()
         if not self._account:
             self._account = accounts[0] if accounts else ""
+        return self
+
+    def connect_with_retry(
+        self, attempts: int = 5, backoff: float = 2.0, timeout: float = 15.0
+    ) -> "IBKRBroker":
+        """Connect, retrying with exponential backoff. On a disconnect mid-run,
+        callers should re-read positions/open orders (reconcile) before acting."""
+        delay = backoff
+        last: Optional[Exception] = None
+        for i in range(1, attempts + 1):
+            try:
+                return self.connect(timeout=timeout)
+            except IBKRError as e:
+                last = e
+                if i >= attempts:
+                    break
+                time.sleep(delay)
+                delay = min(delay * 2, 30.0)
+        raise IBKRError(f"Failed to connect after {attempts} attempts: {last}")
+
+    def ensure_connected(self) -> "IBKRBroker":
+        if not self.is_connected():
+            return self.connect_with_retry()
         return self
 
     def is_connected(self) -> bool:

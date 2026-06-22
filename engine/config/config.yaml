@@ -31,4 +31,5 @@ strategy:
   base_gross: 1.0          # full target gross before risk scaling
 
 state_file: .state/risk_state.json
+store_db: .state/trader.db      # SQLite audit log: decisions, orders, fills (idempotency)
 log_file: .logs/trader.log

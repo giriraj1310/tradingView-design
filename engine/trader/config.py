@@ -108,6 +108,7 @@ class AppConfig:
     sma_window: int = 200
     base_gross: float = 1.0
     state_file: str = ".state/risk_state.json"
+    store_db: str = ".state/trader.db"
     log_file: str = ".logs/trader.log"
 
     @classmethod
@@ -144,5 +145,6 @@ class AppConfig:
             sma_window=strat.get("sma_window", 200),
             base_gross=strat.get("base_gross", 1.0),
             state_file=d.get("state_file", ".state/risk_state.json"),
+            store_db=d.get("store_db", ".state/trader.db"),
             log_file=d.get("log_file", ".logs/trader.log"),
         )

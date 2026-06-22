@@ -21,9 +21,13 @@ trader/
   risk/state.py        # persistent HWM + start-of-day equity (breakers)
   execution/
     backtest_broker.py # simulated fills with commission + slippage
-    ibkr_broker.py     # ib_insync adapter (paper/live)
-  backtest/engine.py   # event-driven, strict t -> t+1, no look-ahead
-  loop.py              # the paper/live trading cycle
+    ibkr_broker.py     # ib_insync adapter (paper/live) + reconnect w/ backoff
+  backtest/
+    engine.py          # event-driven, strict t -> t+1, no look-ahead
+    walkforward.py     # walk-forward + out-of-sample stitching
+  store.py             # SQLite audit log: decisions/orders/fills + idempotency
+  reconcile.py         # broker-vs-local position reconciliation
+  loop.py              # the paper/live cycle (injectable broker/store)
   cli.py               # entrypoints
 config/config.yaml      # universe, broker, backtest settings
 config/risk_policy.yaml # the hard risk limits
@@ -101,6 +105,20 @@ python -m trader.cli paper --live-send   # actually transmit to the PAPER accoun
 Ports live in `config/config.yaml` under `ibkr.port`. Risk limits live in
 `config/risk_policy.yaml` and are enforced regardless of strategy. Set
 `manual_overrides.global_kill_switch: true` to force-flatten and stop trading.
+
+### Operational safety (built in)
+
+- **Reconnect with backoff** — the IBKR adapter retries the connection with
+  exponential backoff; the cycle reads broker truth on every run.
+- **Reconciliation** — on each cycle, broker positions (the source of truth) are
+  compared to the local store; any drift (missed fills, manual trades) is logged
+  and the broker view is trusted.
+- **Idempotent orders** — every order gets a deterministic `client_id`; if it was
+  already transmitted live, a restart/reconnect re-derives the same id and
+  **skips** it, so you never double-send.
+- **Audit log** — every decision, order, and fill is written to a SQLite db
+  (`store_db` in config) for post-trade analysis. Dry-run orders are recorded but
+  never block live sends.
 
 ## Going further (see the design doc)
 

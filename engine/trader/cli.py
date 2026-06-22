@@ -185,8 +185,11 @@ def cmd_paper(cfg: AppConfig, policy: RiskPolicy, args) -> int:
     if dry_run:
         print("DRY-RUN: computing orders but NOT sending. Use --live-send to transmit.")
     result = run_cycle(cfg, policy, dry_run=dry_run, logger=logger)
-    print(f"\nrisk mode : {result['decision']['mode']}")
-    print(f"orders    : {result['orders'] or '(none)'}")
+    print(f"\nrisk mode        : {result['decision']['mode']}")
+    print(f"orders           : {result['orders'] or '(none)'}")
+    print(f"skipped (idempot): {result['skipped_idempotent']}")
+    if result["reconcile_discrepancies"]:
+        print(f"reconcile drift  : {result['reconcile_discrepancies']}")
     return 0
 
 
