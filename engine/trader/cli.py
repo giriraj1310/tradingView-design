@@ -59,6 +59,55 @@ def cmd_backtest(cfg: AppConfig, policy: RiskPolicy, args) -> int:
     return 0
 
 
+def cmd_walkforward(cfg: AppConfig, policy: RiskPolicy, args) -> int:
+    from .backtest import walk_forward
+    from .data import yahoo
+    from .strategies.trend import TrendFollowing
+
+    print(f"Loading history for {cfg.universe} from Yahoo ...")
+    history = yahoo.load(cfg.universe, cache_dir=cfg.cache_dir,
+                         start=cfg.backtest.start, end=cfg.backtest.end,
+                         refresh=args.refresh)
+    grid = [{"sma_window": w} for w in args.grid]
+    factory = lambda **p: TrendFollowing(sma_window=p["sma_window"],
+                                         base_gross=cfg.base_gross)
+    result = walk_forward(
+        history, factory, grid, policy, cfg.backtest,
+        train_years=args.train_years, test_years=args.test_years,
+        step_years=args.step_years, select_by=args.select_by,
+    )
+
+    print(f"\n=== Walk-forward (train={args.train_years}y / test={args.test_years}y "
+          f"/ step={args.step_years}y, select by {args.select_by}) ===")
+    print(f"param grid: sma_window in {args.grid}")
+    print(f"\n{'fold OOS period':28}{'picked sma':>11}{'OOS ret':>10}{'OOS DD':>9}")
+    selected = []
+    for f in result.folds:
+        sma = f.best_param["sma_window"]
+        selected.append(sma)
+        print(f"{f.test_start} -> {f.test_end:12}{sma:>11}"
+              f"{_pct(f.oos_metrics.get('total_return', 0)):>10}"
+              f"{_pct(f.oos_metrics.get('max_drawdown', 0)):>9}")
+
+    m, b = result.oos_metrics, result.benchmark_metrics
+    print("\n--- Stitched OUT-OF-SAMPLE vs benchmark "
+          f"{cfg.backtest.benchmark} (same OOS period) ---")
+    print(f"{'':18}{'OOS':>12}{'BENCHMARK':>14}")
+    for key, label in [("total_return", "Total return"), ("cagr", "CAGR"),
+                       ("ann_vol", "Ann. vol"), ("sharpe", "Sharpe"),
+                       ("max_drawdown", "Max drawdown"), ("calmar", "Calmar")]:
+        sv, bv = m.get(key, 0.0), b.get(key, 0.0)
+        sfmt = f"{sv:.2f}" if key in ("sharpe", "calmar") else _pct(sv)
+        bfmt = f"{bv:.2f}" if key in ("sharpe", "calmar") else _pct(bv)
+        print(f"{label:18}{sfmt:>12}{bfmt:>14}")
+
+    uniq = sorted(set(selected))
+    print(f"\nparameter stability: selected sma values = {uniq}")
+    print("  (few distinct, clustered values = robust; jumping all over = likely noise)")
+    print("NOTE: OOS results still do not guarantee live performance.")
+    return 0
+
+
 def cmd_signals(cfg: AppConfig, policy: RiskPolicy, args) -> int:
     from .data import yahoo
     from .risk.manager import RiskManager
@@ -150,6 +199,18 @@ def main(argv=None) -> int:
     p_bt = sub.add_parser("backtest", help="run an honest backtest on Yahoo data")
     p_bt.add_argument("--refresh", action="store_true", help="ignore cache, refetch")
     p_bt.set_defaults(func=cmd_backtest)
+
+    p_wf = sub.add_parser("walkforward", help="walk-forward + OOS validation")
+    p_wf.add_argument("--refresh", action="store_true")
+    p_wf.add_argument("--grid", type=int, nargs="+",
+                      default=[50, 100, 150, 200, 250],
+                      help="sma_window values to select among")
+    p_wf.add_argument("--train-years", type=int, default=3)
+    p_wf.add_argument("--test-years", type=int, default=1)
+    p_wf.add_argument("--step-years", type=int, default=1)
+    p_wf.add_argument("--select-by", default="sharpe",
+                      choices=["sharpe", "calmar", "cagr", "total_return"])
+    p_wf.set_defaults(func=cmd_walkforward)
 
     p_sig = sub.add_parser("signals", help="today's target weights/orders (no broker)")
     p_sig.add_argument("--refresh", action="store_true")

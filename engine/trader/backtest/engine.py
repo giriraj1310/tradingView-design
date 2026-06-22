@@ -60,8 +60,8 @@ def run_backtest(
     if cfg.end:
         end = pd.to_datetime(cfg.end)
         all_dates = [d for d in all_dates if d <= end]
-    if len(all_dates) < strategy.warmup + 2:
-        raise ValueError("Not enough data for the strategy warmup window.")
+    if len(all_dates) < 3:
+        raise ValueError("Not enough data to run a backtest.")
 
     broker = BacktestBroker(
         cash=cfg.initial_cash,
@@ -83,10 +83,12 @@ def run_backtest(
         state.update(acct.equity, str(day.date()))
         equity_points.append((day, acct.equity))
 
-        if i < strategy.warmup or i + 1 >= len(all_dates):
-            continue
+        if i + 1 >= len(all_dates):
+            continue  # need a next bar to fill against
 
-        # decide using ONLY history up to `day`
+        # decide using ONLY history up to `day` (the strategy self-guards its
+        # own warmup; with pre-window history available it can act from day 1,
+        # which is what makes short walk-forward test windows valid)
         hist_slice = {s: df.loc[:day] for s, df in history.items()}
         desired = strategy.target_weights(hist_slice, asof=day)
         orders, decision = risk.build_orders(

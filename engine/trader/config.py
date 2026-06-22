@@ -21,6 +21,7 @@ class RiskPolicy:
     max_positions: int = 12
     max_sector_weight: float = 0.35
     min_trade_notional: float = 100.0
+    no_trade_band: float = 0.05
     sizing_method: str = "volatility_target"
     target_annual_vol: float = 0.10
     risk_per_trade: float = 0.0075
@@ -43,6 +44,7 @@ class RiskPolicy:
         lev = d.get("leverage", {})
         pos = d.get("position_limits", {})
         siz = d.get("sizing", {})
+        reb = d.get("rebalancing", {})
         st = d.get("stops", {})
         cb = d.get("circuit_breakers", {})
         mg = d.get("market_guards", {})
@@ -55,6 +57,7 @@ class RiskPolicy:
             max_positions=pos.get("max_positions", 12),
             max_sector_weight=pos.get("max_sector_weight", 0.35),
             min_trade_notional=pos.get("min_trade_notional", 100.0),
+            no_trade_band=reb.get("no_trade_band", 0.05),
             sizing_method=siz.get("method", "volatility_target"),
             target_annual_vol=siz.get("target_annual_vol", 0.10),
             risk_per_trade=siz.get("risk_per_trade", 0.0075),

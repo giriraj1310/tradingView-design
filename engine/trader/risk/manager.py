@@ -98,6 +98,22 @@ class RiskManager:
                 if abs(tgt) > abs(cur):  # don't increase exposure
                     target_shares[s] = cur
 
+        # --- 5b. no-trade band: skip small rebalances ------------------
+        # Only rebalance a held name when its weight has drifted beyond the
+        # band. Full exits (target weight 0) and flattens always proceed, so
+        # signal-driven exits are never suppressed.
+        band = p.no_trade_band
+        if band > 0 and account.equity > 0:
+            for s in symbols:
+                price = latest_prices.get(s) or 0.0
+                if price <= 0:
+                    continue
+                target_w = capped.get(s, 0.0)
+                cur = account.position_qty(s)
+                current_w = (cur * price) / account.equity
+                if target_w != 0 and abs(target_w - current_w) < band:
+                    target_shares[s] = cur
+
         # --- 6. diff vs current -> orders ------------------------------
         orders: List[Order] = []
         for s in sorted(symbols):
@@ -125,6 +141,7 @@ class RiskManager:
             "drawdown": round(dd, 4),
             "daily_pnl": round(daily, 4),
             "vol_scale": round(vol_scale, 4),
+            "no_trade_band": p.no_trade_band,
             "desired_weights": {k: round(v, 4) for k, v in desired.items()},
             "target_weights": {k: round(v, 4) for k, v in capped.items()},
             "n_orders": len(orders),

@@ -58,13 +58,22 @@ blocks IB Gateway from reaching IBKR's servers — run on a personal machine.
 
 ```bash
 python -m trader.cli backtest        # downloads Yahoo data, prints metrics vs SPY
+python -m trader.cli walkforward     # walk-forward + out-of-sample validation
 python -m trader.cli signals         # today's target weights/orders on a flat book
 pytest                               # run the test suite (incl. no-look-ahead proof)
 ```
 
 `backtest` uses **point-in-time slicing** (decide on close `t`, fill at open
-`t+1`), pessimistic commission + slippage, volatility-scaled sizing, and the
-full risk module. It writes `equity_curve.csv`.
+`t+1`), pessimistic commission + slippage, volatility-scaled sizing, a
+**no-trade band** (only rebalance when a name drifts > `no_trade_band` from
+target — cuts turnover dramatically), and the full risk module. It writes
+`equity_curve.csv`.
+
+`walkforward` is the honest test: for each rolling fold it picks the best
+parameter on the in-sample window, then evaluates it on the **next, unseen**
+window, and stitches those out-of-sample segments into one curve. It also
+prints the parameter chosen per fold — if it jumps around, the "edge" is likely
+noise. Tune with `--train-years/--test-years/--step-years/--grid/--select-by`.
 
 ## 2) Connect to IBKR paper trading
 

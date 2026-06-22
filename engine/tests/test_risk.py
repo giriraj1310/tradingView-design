@@ -87,6 +87,45 @@ def test_vol_targeting_scales_down_high_vol():
     assert dec["target_weights"]["AAA"] < 1.0
 
 
+def test_no_trade_band_skips_small_drift():
+    # target ~20% but already holding ~18% (2pp drift < 5pp band) -> no trade
+    pol = RiskPolicy(max_weight_single_etf=1.0, target_annual_vol=10.0,
+                     no_trade_band=0.05)
+    rm = RiskManager(pol)
+    hist = _flat_history(["AAA"])
+    acct = Account(cash=82000, equity=100000,
+                   positions={"AAA": Position("AAA", 180, 100.0)})  # 18% weight
+    state = RiskState.initialize(100000, "d")
+    orders, _ = rm.build_orders({"AAA": 0.20}, hist, acct, state, {"AAA": 100.0})
+    assert orders == []
+
+
+def test_no_trade_band_allows_large_drift():
+    pol = RiskPolicy(max_weight_single_etf=1.0, target_annual_vol=10.0,
+                     no_trade_band=0.05)
+    rm = RiskManager(pol)
+    hist = _flat_history(["AAA"])
+    # holding 5%, target 20% -> 15pp drift > band -> should trade
+    acct = Account(cash=95000, equity=100000,
+                   positions={"AAA": Position("AAA", 50, 100.0)})
+    state = RiskState.initialize(100000, "d")
+    orders, _ = rm.build_orders({"AAA": 0.20}, hist, acct, state, {"AAA": 100.0})
+    assert any(o.symbol == "AAA" and o.action == "BUY" for o in orders)
+
+
+def test_no_trade_band_never_blocks_full_exit():
+    # signal dropped the name (target 0); band must NOT keep the position
+    pol = RiskPolicy(max_weight_single_etf=1.0, no_trade_band=0.05)
+    rm = RiskManager(pol)
+    hist = _flat_history(["AAA"])
+    acct = Account(cash=98000, equity=100000,
+                   positions={"AAA": Position("AAA", 20, 100.0)})  # 2% weight
+    state = RiskState.initialize(100000, "d")
+    orders, _ = rm.build_orders({}, hist, acct, state, {"AAA": 100.0})
+    sell = next(o for o in orders if o.symbol == "AAA")
+    assert sell.action == "SELL" and sell.quantity == 20
+
+
 def test_drawdown_helper():
     assert abs(drawdown(80, 100) - (-0.2)) < 1e-9
     assert drawdown(120, 100) > 0

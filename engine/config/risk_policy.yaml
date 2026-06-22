@@ -13,6 +13,12 @@ position_limits:
   max_sector_weight: 0.35
   min_trade_notional: 100      # ignore dust trades smaller than this
 
+rebalancing:
+  # Only rebalance a held name when its weight has drifted more than this many
+  # percentage points from target. Cuts turnover from daily vol-scaling noise.
+  # Full exits (target weight 0) and kill-switch flattens always execute.
+  no_trade_band: 0.05
+
 sizing:
   method: volatility_target
   target_annual_vol: 0.10      # scale the whole book toward 10% annualized vol
