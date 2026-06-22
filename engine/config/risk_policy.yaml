@@ -1,0 +1,38 @@
+# Risk policy — hard constraints enforced in code, independent of any strategy.
+# When a rule and a signal conflict, the rule wins.
+account_currency: USD
+
+leverage:
+  max_gross_exposure: 1.00     # no leverage to start
+  max_net_exposure: 1.00
+
+position_limits:
+  max_weight_single_etf: 0.25
+  max_weight_single_stock: 0.08
+  max_positions: 12
+  max_sector_weight: 0.35
+  min_trade_notional: 100      # ignore dust trades smaller than this
+
+sizing:
+  method: volatility_target
+  target_annual_vol: 0.10      # scale the whole book toward 10% annualized vol
+  risk_per_trade: 0.0075
+  kelly_fraction_cap: 0.25
+
+stops:
+  type: atr
+  atr_multiple: 3.0
+  time_stop_bars: 20
+
+circuit_breakers:
+  max_daily_loss_pct: 0.02     # stop opening new risk for the day
+  drawdown_soft_pct: 0.10      # halve target sizes
+  drawdown_hard_pct: 0.15      # halt + flatten; require manual re-enable
+
+market_guards:
+  max_spread_bps: 25
+  halt_on_stale_data_seconds: 120
+  on_uncertainty: reduce_or_halt
+
+manual_overrides:
+  global_kill_switch: false    # set true to force-flatten and stop trading

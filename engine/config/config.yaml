@@ -1,0 +1,34 @@
+# Application configuration. Safe to edit. No secrets here.
+# Universe: liquid ETFs across US equity / intl / bonds / gold.
+universe: [SPY, QQQ, IWM, EFA, TLT, GLD]
+
+bar: 1d
+history_days: 420          # enough history to warm up a 200-day SMA
+
+data:
+  source: yahoo            # yahoo | ibkr
+  cache_dir: .cache
+
+backtest:
+  start: "2015-01-01"
+  end: null                # null = up to latest available
+  initial_cash: 100000
+  commission_per_share: 0.005
+  min_commission: 1.0
+  slippage_bps: 5          # 5 bps each side, pessimistic for liquid ETFs
+  benchmark: SPY
+
+ibkr:
+  host: 127.0.0.1
+  port: 4002               # IB Gateway PAPER. (IB Gateway live=4001, TWS paper=7497, TWS live=7496)
+  client_id: 17
+  account: null            # null = auto-detect the first managed account
+  readonly: false
+
+strategy:
+  name: trend
+  sma_window: 200
+  base_gross: 1.0          # full target gross before risk scaling
+
+state_file: .state/risk_state.json
+log_file: .logs/trader.log

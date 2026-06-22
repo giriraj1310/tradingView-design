@@ -18,6 +18,11 @@ rendered by a small **Next.js** site deployed on **Vercel**.
   (architecture, strategy framework, backtesting, risk policy, IBKR execution,
   roadmap, pseudo-code, pre-live checklist).
 - `app/` — Next.js (App Router) site that renders the design.
+- [`engine/`](engine/) — **the runnable Python trading engine**: honest
+  event-driven backtester, the risk gatekeeper (caps, vol-targeting,
+  kill-switches), and an `ib_insync` adapter that connects to IBKR **paper
+  trading**. The same strategy + risk code runs in backtest, paper, and live.
+  See [`engine/README.md`](engine/README.md) to run it.
 
 > The Next.js site is **documentation only**. The actual trading engine is
 > intended to run on your own always-on host (it needs a persistent socket to
